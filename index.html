@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quiz de Cálculo Mental Inteiro (Números Pequenos)</title>
+<style>
+  body {
+    margin: 0; padding: 0;
+    font-family: Arial, sans-serif;
+    background: #f2f2f2;
+    display: flex; justify-content: center; align-items: center;
+    height: 100vh;
+  }
+  .container {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 650px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    position: relative;
+  }
+  #sairBtn {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #question {
+    font-size: 1.6rem;
+    margin-bottom: 1rem;
+  }
+  #timer {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: #333;
+  }
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .options button {
+    padding: 1rem;
+    font-size: 1.2rem;
+    border: none;
+    border-radius: 10px;
+    background-color: #eee;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .options button:hover:not(:disabled) {
+    background-color: #ddd;
+  }
+  .options button.correct {
+    background-color: #a5d6a7 !important;
+  }
+  .options button.incorrect {
+    background-color: #ef9a9a !important;
+  }
+  #nextBtn {
+    background-color: #4caf50;
+    border: none;
+    color: white;
+    padding: 0.8rem 1.5rem;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #nextBtn:disabled {
+    background-color: #999;
+    cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <button id="sairBtn">Sair</button>
+  <div id="timer">Tempo: 30s</div>
+  <div id="question"></div>
+  <div class="options"></div>
+  <button id="nextBtn" disabled>Próximo</button>
+</div>
+
+<script>
+  const questionEl = document.getElementById('question');
+  const optionsEl = document.querySelector('.options');
+  const nextBtn = document.getElementById('nextBtn');
+  const sairBtn = document.getElementById('sairBtn');
+  const timerEl = document.getElementById('timer');
+
+  let score = 0;
+  let total = 0;
+  let correctAnswer = null;
+  let answered = false;
+  let timer;
+  let timeLeft = 30;
+
+  function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // Avalia expressão com substituição dos símbolos
+  function evaluateExpression(expr) {
+    expr = expr.replace(/(\d+)\^(\d+)/g, (m, base, exp) => `Math.pow(${base},${exp})`);
+    expr = expr.replace(/√\(?(\d+)\)?/g, (m, num) => `Math.sqrt(${num})`);
+    expr = expr.replace(/\s+/g, '');
+    try {
+      let val = eval(expr);
+      if (Number.isInteger(val) && val >= 0) return val;
+      else return NaN; // rejeita resultado decimal ou negativo
+    } catch {
+      return NaN;
+    }
+  }
+
+  // Gera um termo válido com números pequenos para cálculo mental
+  function genTerm() {
+    let choice = getRandomInt(1, 5);
+    switch(choice) {
+      case 1: // número inteiro simples de 1 a 20
+        return getRandomInt(1, 20).toString();
+      case 2: { // raiz quadrada perfeita (até 100)
+        const roots = [4,9,16,25,36,49,64,81,100];
+        const r = roots[getRandomInt(0, roots.length - 1)];
+        return '√' + r;
+      }
+      case 3: // potenciação com resultado pequeno (base 2-5, expoente 2)
+        let base = getRandomInt(2, 5);
+        let exp = 2;
+        return `${base}^${exp}`;
+      case 4: { // parênteses com soma/subtração simples
+        let a = getRandomInt(5, 15);
+        let b = getRandomInt(0, 5);
+        if(Math.random() < 0.5) {
+          return `(${a} + ${b})`;
+        } else {
+          if(a - b < 0) return `(${a} + ${b})`;
+          else return `(${a} - ${b})`;
+        }
+      }
+      case 5: { // parênteses com multiplicação/divisão exata usando números pequenos (1 a 10)
+        let c = getRandomInt(1, 10);
+        let dOptions = [];
+        for(let i = 1; i <= 10; i++) {
+          if ((c * i) <= 20) dOptions.push(i);
+        }
+        let d = dOptions[getRandomInt(0, dOptions.length -1)];
+        let op = Math.random() < 0.5 ? '*' : '/';
+        if(op === '/') {
+          return `(${c * d} / ${d})`; // divisão exata, resultado c
+        } else {
+          return `(${c} * ${d})`;
+        }
+      }
+      default:
+        return '5';
+    }
+  }
+
+  // Gera expressão com 3 a 4 termos
+  function generateExpression() {
+    const ops = [' + ', ' - ', ' * ', ' / '];
+    let length = getRandomInt(3, 4);
+    let expr = genTerm();
+
+    for(let i = 1; i < length; i++) {
+      let op = ops[getRandomInt(0, ops.length -1)];
+      let term = genTerm();
+
+      // Ajusta para divisões exatas e sem negativos
+      if(op === '/') {
+        let prevVal = evaluateExpression(expr);
+        let nextVal = evaluateExpression(term);
+        if(nextVal === 0 || prevVal === null || nextVal === null) {
+          op = '*';
+        } else if(prevVal % nextVal !== 0) {
+          op = '*';
+        }
+      }
+      if(op === '-') {
+        let prevVal = evaluateExpression(expr);
+        let nextVal = evaluateExpression(term);
+        if(prevVal < nextVal) {
+          op = '+';
+        }
+      }
+
+      expr += op + term;
+    }
+    return expr;
+  }
+
+  // Gera 4 opções embaralhadas não negativas
+  function generateOptions(correct) {
+    let options = new Set();
+    options.add(correct);
+
+    while(options.size < 4) {
+      let variation = getRandomInt(-5, 5);
+      let val = correct + variation;
+      if(val !== correct && val >= 0) options.add(val);
+    }
+
+    return Array.from(options).sort(() => Math.random() - 0.5);
+  }
+
+  function resetTimer() {
+    clearInterval(timer);
+    timeLeft = 30;
+    timerEl.textContent = `Tempo: ${timeLeft}s`;
+    timer = setInterval(() => {
+      timeLeft--;
+      timerEl.textContent = `Tempo: ${timeLeft}s`;
+      if(timeLeft <= 0) {
+        clearInterval(timer);
+        disableOptions();
+        nextBtn.disabled = false;
+        total++;
+        alert("Tempo esgotado! A resposta correta está destacada.");
+        highlightCorrect();
+      }
+    }, 1000);
+  }
+
+  function disableOptions() {
+    const buttons = optionsEl.querySelectorAll('button');
+    buttons.forEach(btn => btn.disabled = true);
+  }
+
+  function highlightCorrect() {
+    const buttons = optionsEl.querySelectorAll('button');
+    buttons.forEach(btn => {
+      if(parseInt(btn.textContent) === correctAnswer) {
+        btn.classList.add('correct');
+      }
+    });
+  }
+
+  function createQuestion() {
+    answered = false;
+    nextBtn.disabled = true;
+    optionsEl.innerHTML = '';
+
+    let expr, val;
+
+    // Gera expressão até ter resultado válido inteiro e não negativo
+    do {
+      expr = generateExpression();
+      val = evaluateExpression(expr);
+    } while(isNaN(val) || val < 0 || !Number.isInteger(val) || val > 100);
+
+    correctAnswer = val;
+    questionEl.textContent = expr + ' = ?';
+
+    let options = generateOptions(correctAnswer);
+
+    options.forEach(option => {
+      const btn = document.createElement('button');
+      btn.textContent = option;
+      btn.addEventListener('click', () => {
+        if(answered) return;
+        answered = true;
+        total++;
+        if(option === correctAnswer) {
+          score++;
+          btn.classList.add('correct');
+        } else {
+          btn.classList.add('incorrect');
+          highlightCorrect();
+        }
+        disableOptions();
+        nextBtn.disabled = false;
+        clearInterval(timer);
+      });
+      optionsEl.appendChild(btn);
+    });
+
+    resetTimer();
+  }
+
+  nextBtn.addEventListener('click', () => {
+    createQuestion();
+  });
+
+  sairBtn.addEventListener('click', () => {
+    clearInterval(timer);
+    alert(`Você acertou ${score} de ${total} questões.`);
+    window.location.reload();
+  });
+
+  // Avançar com Enter só se botão Próximo estiver ativo
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !nextBtn.disabled) {
+      createQuestion();
+    }
+  });
+
+  createQuestion();
+</script>
+</body>
+</html>
